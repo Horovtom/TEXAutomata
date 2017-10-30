@@ -5,6 +5,7 @@
 #include <map>
 #include <iomanip>
 #include <fstream>
+#include <algorithm>
 
 using namespace std;
 int numStates, numLetters;
@@ -12,7 +13,7 @@ vector<string> states, letters;
 map<int, map<int, vector<int>>> statesTable;
 vector<int> initials;
 vector<int> finals;
-
+vector<int> written;
 vector<int> maxLen;
 
 
@@ -46,6 +47,8 @@ void mainMenu();
 
 void saveToFile();
 
+string allLettersOfEdge(int from, int to);
+
 string getTikzHeader();
 
 string getTikzStates();
@@ -59,6 +62,11 @@ string getTikzEdge(int i);
 string findAttributesOfEdge(int state, int letter);
 
 bool hasEdgeTo(int target, int state);
+
+template<typename T>
+void printElement(T t, const int &width) {
+    cout << left << setw(width) << setfill(' ') << t;
+}
 
 void displayInstructions() {
     cout << "Instructions: Input number of states and length of sigma. Then input letter names and sigma names. "
@@ -150,16 +158,14 @@ void loadStateDescription(int i) {
             len += tokens[k].length() + 1;
         }
 
-        if (maxLen.size() <= i) {
+        if (maxLen.size() <= j) {
             maxLen.push_back(len);
         } else {
-            maxLen[i] = max(maxLen[i], len);
+            maxLen[j] = max(maxLen[j], len);
         }
 
         stateLine[letters[j]] = tokens;
     }
-
-
     statesTable[i] = translateStateLineToIndexes(stateLine);
 }
 
@@ -308,7 +314,7 @@ void saveToFile() {
 
 
 void printTable() {
-    cout << endl;
+    cout << endl << endl;
     //Print header
     int maxim = 0;
     for (int j = 0; j < states.size(); ++j) {
@@ -316,12 +322,13 @@ void printTable() {
     }
     maxim += 2;
 
-    for (int k = 0; k < maxim + 1; ++k) {
+    for (int k = 0; k < maxim; ++k) {
         cout << " ";
     }
 
     for (int i = 0; i < numLetters; ++i) {
-        cout << setw(maxLen[i]) << letters[i];
+        printElement(letters[i], maxLen[i]);
+        //cout << setw(maxLen[i]) << letters[i];
     }
     cout << endl;
 
@@ -337,7 +344,8 @@ void printTable() {
         }
 
         name += states[i];
-        cout << setw(maxim) << name << " ";
+        printElement(name, maxim);
+        //cout << setw(maxim) << name << " ";
 
         //Print it:
         for (int j = 0; j < numLetters; ++j) {
@@ -348,11 +356,15 @@ void printTable() {
                 s += "," + states[rels[k]];
             }
             s += " ";
-            cout << setw(maxLen[j]) << s;
+            printElement(s, maxLen[j]);
+            //cout << std::setw(maxLen[j]) << s;
+
+
         }
         cout << endl;
+        //cout << maxLen[0] << ',' << maxLen[1] << endl;
     }
-
+    cout << endl << endl;
 }
 
 bool isInitial(int i) {
@@ -385,7 +397,7 @@ string getTikzCode() {
 }
 
 string getTikzEdges() {
-    string result = "     \\path\n";
+    string result = "     \\path";
     for (int i = 0; i < numStates; ++i) {
         result += getTikzEdge(i);
     }
@@ -394,14 +406,40 @@ string getTikzEdges() {
 }
 
 string getTikzEdge(int i) {
-    string result = "       (" + to_string(i) + ")\n";
+    string result = "\n       (" + to_string(i) + ")";
 
+    written.clear();
     for (int j = 0; j < numLetters; ++j) {
-        vector<int> connections = statesTable[i][j];
-        for (int k = 0; k < connections.size(); ++k) {
-            result += "            ";
-            result += "edge " + findAttributesOfEdge(i, connections[k]) + " node {" + letters[j] + "} (" +
-                      to_string(connections[k]) + ")\n";
+        if (std::find(written.begin(), written.end(), j) == written.end()) {
+            vector<int> connections = statesTable[i][j];
+            for (int k = 0; k < connections.size(); ++k) {
+
+                result += "\n            ";
+                result += "edge " + findAttributesOfEdge(i, connections[k]) + " node {" +
+                          allLettersOfEdge(i, connections[k]) + "} (" +
+                          to_string(connections[k]) + ")";
+            }
+        }
+    }
+    return result;
+}
+
+string allLettersOfEdge(int from, int to) {
+    string result = "";
+    bool writtenFirst = false;
+    for (int i = 0; i < numLetters; ++i) {
+        vector<int> curr = statesTable[from][i];
+        for (int j = 0; j < curr.size(); ++j) {
+            if (curr[j] == to) {
+                if (!writtenFirst) {
+                    writtenFirst = true;
+                    result += letters[i];
+                    written.push_back(i);
+                } else {
+                    result += "," + letters[i];
+                    written.push_back(i);
+                }
+            }
         }
     }
     return result;
@@ -437,14 +475,7 @@ string getTikzState(int i) {
 }
 
 string getTikzHeader() {
-    string result = "\\usepackage{pgfplots}\n"
-            "\\usepackage{tikz}\n"
-            "\\usepackage{amssymb}\n"
-            "\\usetikzlibrary{shapes, angles, calc, quotes,arrows,automata}\n"
-            "\\usepackage[makeroom]{cancel}\n"
-            "\\usepackage{amsmath}\n"
-            "\\usepackage{pgf}\n"
-            "\\usepackage{txfonts}";
+    string result = "\\usepackage{tikz}\n\\usetikzlibrary{shapes, angles, calc, quotes,arrows,automata}\n";
     result += "\n\n\\begin{document}";
     result += "\n\n%Here is the code for the automaton: \n\n";
     result += "\\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2.8cm,semithick]\n";
